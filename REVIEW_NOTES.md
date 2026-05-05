@@ -61,7 +61,7 @@ Türkçe stopword oranı bir tür dil tespiti yapıyor ama ham bir yaklaşım. F
 
 ---
 
-## SLURM Kurulumu
+## SLURM Kurulumu -> BU SEÇİMLERDEN HİÇ EMİN DEĞİLİM !!
 
 | Script | Partition | Core | RAM | Süre |
 |--------|-----------|------|-----|------|

@@ -157,8 +157,8 @@ DATASETS = {
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--dataset",   choices=["fineweb", "culturax"], required=True)
-    parser.add_argument("--task_id",   type=int, required=True)
+    parser.add_argument("--dataset",   choices=["fineweb", "culturax"], required=True) 
+    parser.add_argument("--task_id",   type=int, required=True) # shell task_id atayıp çağırıyor, python scriptlerini
     parser.add_argument("--num_tasks", type=int, required=True)
     parser.add_argument("--output_dir",  type=str, required=True)
     parser.add_argument("--dropped_dir", type=str, default=None,
@@ -178,9 +178,9 @@ def main():
     api = HfApi()
 
     print(f"[task {args.task_id}] Shard listesi alınıyor: {cfg['repo_id']}")
-    all_files  = sorted(api.list_repo_files(cfg["repo_id"], repo_type="dataset"))
+    all_files  = sorted(api.list_repo_files(cfg["repo_id"], repo_type="dataset")) # hugging face'den repo isimlerini çek + parçala
     data_files = [f for f in all_files if cfg["file_filter"](f)]
-    my_files   = data_files[args.task_id::args.num_tasks]
+    my_files   = data_files[args.task_id::args.num_tasks] # task id'den başla , num_tasks kadar adım at 
 
     if not my_files:
         print(f"[task {args.task_id}] Bu task için shard yok.")
@@ -204,10 +204,10 @@ def main():
         url = base_url + fname
         print(f"[task {args.task_id}] Shard {shard_idx}/{len(my_files)-1} yükleniyor: {fname}")
 
-        shard = load_dataset("parquet", data_files=[url], split="train", num_proc=args.num_proc)
+        shard = load_dataset("parquet", data_files=[url], split="train", num_proc=args.num_proc) # num_proc -> bölünecek çekirdek sayısı 
         n_before      = len(shard)
         total_before += n_before
-
+        #burada verilen cpu sayısına belgeyi bölüyor 
         shard   = shard.map(_process, num_proc=args.num_proc, desc=f"Shard {shard_idx}")
         kept    = shard.filter(lambda x:     x["_keep"], num_proc=args.num_proc)
         dropped = shard.filter(lambda x: not x["_keep"], num_proc=args.num_proc)
