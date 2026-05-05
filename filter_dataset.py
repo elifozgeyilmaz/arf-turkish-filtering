@@ -49,7 +49,7 @@ _other_special = (
     "♡✓⊕।．⋅\xf7１‟；"
     "،、\xa8"
 )
-# ya bu kullanıcıya bilgi verme syntaxini sevmiyorum, ne gerek var 
+
 SPECIAL_CHARS = set(_main_special + _other_special)
 
 _STOPWORDS = frozenset(w.lower() for w in stopwords_tr)
