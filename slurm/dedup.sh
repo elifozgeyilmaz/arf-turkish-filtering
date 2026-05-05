@@ -1,13 +1,12 @@
 #!/bin/bash
-# CPU partition varsa degistir
-#SBATCH -p kolyoz-cuda
+#SBATCH -p smp
 #SBATCH -A proj67
 #SBATCH -J tr_dedup
 #SBATCH -N 1
 #SBATCH -n 1
 # MinHash icin yuksek RAM gerekli
 #SBATCH --mem=250G
-#SBATCH -c 60
+#SBATCH -c 112
 #SBATCH --time=24:00:00
 #SBATCH --output=logs/dedup_%j.out
 #SBATCH --error=logs/dedup_%j.err
@@ -33,7 +32,7 @@ python3 truba/dedup.py \
     --merged_dir "$MERGED_DIR" \
     --output_dir "$DEDUP_DIR" \
     --cache_dir  "$CACHE_DIR" \
-    --num_proc   60 \
+    --num_proc   112 \
     --num_perm   128 \
     --threshold  0.80 \
     --batch_size 10000

@@ -8,8 +8,7 @@
 #
 # DATASET ve HF_TOKEN dışarıdan verilmezse aşağıdaki defaults kullanılır.
 # ============================================================
-# CPU partition varsa degistir (sinfo ile bak)
-#SBATCH -p kolyoz-cuda
+#SBATCH -p orfoz
 #SBATCH -A proj67
 #SBATCH -J tr_filter
 #SBATCH -N 1
@@ -29,7 +28,7 @@ cd "$PROJECT_DIR"
 source .venv/bin/activate
 
 DATASET="${DATASET:-fineweb}" 
-HF_TOKEN="${HF_TOKEN:-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}" # bu satırı githuba ekleme sakın!!!!
+HF_TOKEN="${HF_TOKEN:-}"  # sbatch --export=HF_TOKEN=hf_xxx ile ver
 NUM_TASKS=50                    # --array üst sınırı + 1 ile eşleşmeli
 
 OUTPUT_DIR="$PROJECT_DIR/${DATASET}_filtered"
