@@ -141,7 +141,7 @@ def _process(example: dict) -> dict:
 DATASETS = {
     "fineweb": {
         "repo_id": "HuggingFaceFW/fineweb-2",
-        "file_filter": lambda f: "/tr/" in f and f.endswith(".parquet"),
+        "file_filter": lambda f: "tur_Latn" in f and f.endswith(".parquet"),
         "needs_token": False,
     },
     "culturax": {
