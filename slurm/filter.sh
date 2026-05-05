@@ -28,8 +28,8 @@ PROJECT_DIR="/arf/scratch/proj67/turkish-filtering"
 cd "$PROJECT_DIR"
 source .venv/bin/activate
 
-DATASET="${DATASET:-fineweb}"
-HF_TOKEN="${HF_TOKEN:-}"
+DATASET="${DATASET:-fineweb}" 
+HF_TOKEN="${HF_TOKEN:-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}" # bu satırı githuba ekleme sakın!!!!
 NUM_TASKS=50                    # --array üst sınırı + 1 ile eşleşmeli
 
 OUTPUT_DIR="$PROJECT_DIR/${DATASET}_filtered"

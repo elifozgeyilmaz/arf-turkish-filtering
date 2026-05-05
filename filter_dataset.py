@@ -14,20 +14,21 @@ Kullanım:
     --hf_token $HF_TOKEN \\
     --num_proc 60
 """
-
+#TODO 3 fasttext ile skor< 0.80 olanları bu iki datasetin filtrelenmesine eklesek mi?
+#TODO 4 fasttexti eğitebiliriz, küçük bir etiketlenmiş dataset lazım , örnek:
+# Format: __label__good Ankara Türkiye'nin başkentidir. / __label__bad sdfhcshvfsf. -> binary classifier 
 import argparse
+import html
 import os
+import re
 import string
-import sys
 import time
 from collections import Counter
-from typing import List, Set
 
 from datasets import load_dataset
 from huggingface_hub import HfApi, login
 
 # Word listeleri ana dizinden import et
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from stopwords_tr import stopwords_tr
 from flagged_words_tr import flagged_words_tr
 
@@ -48,7 +49,8 @@ _other_special = (
     "♡✓⊕।．⋅\xf7１‟；"
     "،、\xa8"
 )
-SPECIAL_CHARS: Set[str] = set(_main_special + _other_special)
+# ya bu kullanıcıya bilgi verme syntaxini sevmiyorum, ne gerek var 
+SPECIAL_CHARS = set(_main_special + _other_special)
 
 _STOPWORDS = frozenset(w.lower() for w in stopwords_tr)
 _FLAGGED   = frozenset(w.lower() for w in flagged_words_tr)
@@ -57,13 +59,15 @@ _FLAGGED   = frozenset(w.lower() for w in flagged_words_tr)
 # Filtreleme fonksiyonları
 # ---------------------------------------------------------------------------
 
-def _get_words(text: str) -> List[str]:
+def _get_words(text):
     strip_str = "".join(SPECIAL_CHARS)
     return [w for w in (w.strip(strip_str) for w in text.split()) if w]
 
-
-def _modify(text: str) -> str:
-    text = " ".join(text.split())  # whitespace normalize
+#html unescape ne yapar --> > bu karakteri html tagi içinde yazamayız, onun yerine  &gt kullanırız, bu fonksiyon onları dönüştürüyor. Diğer örnekler: &amp→& vs.    
+def _modify(text):
+    text = html.unescape(text)                     # &amp; → &, &lt; → <, &nbsp; → boşluk
+    text = re.sub(r"<[^>]+>", " ", text)           # <div>, <p>, <br> gibi tag'leri siler nasıl: re.sub regex ile bul-değiştir yapar. str.replace'den farkı: tam string aramak yerine pattern ile arar. 
+    text = " ".join(text.split())                  # whitespace normalize
     bad = ["http", "www", ".com", "href", "//"]
     return " ".join(w for w in text.split() if not any(s in w for s in bad))
 
@@ -79,7 +83,7 @@ def _keep(text_raw: str) -> bool:
     text = _modify(text_raw)
     words = _get_words(text)
 
-    # Kelime sayısı
+    # Kelime sayısı -> 100.000 üstünü atma konusundan emin değilim TODO!
     if not (15 <= len(words) <= 100_000):
         return False
 
@@ -115,7 +119,7 @@ def _keep(text_raw: str) -> bool:
     if sw_ratio < 0.05:
         return False
 
-    # Flagged word oranı
+    # Flagged word oranı -> TODO 2 : bu oran değişmeli mi, bazı kelimeleri görünce direkt atsak mı?
     fw_ratio = sum(1 for w in words if w.lower() in _FLAGGED) / len(words)
     if fw_ratio > 0.05:
         return False
@@ -159,7 +163,7 @@ def main():
     parser.add_argument("--output_dir",  type=str, required=True)
     parser.add_argument("--dropped_dir", type=str, default=None,
                         help="Atılan belgelerin kaydedileceği dizin (verilmezse kaydedilmez)")
-    parser.add_argument("--hf_token",   type=str, default=None)
+    parser.add_argument("--hf_token",   type=str, default=None) # culturax icin lazım da ama onu kullanmayalım diyorum, bu satır gereksiz oldu simdi -> fineweb ve hplt icin
     parser.add_argument("--num_proc",   type=int, default=os.cpu_count())
     args = parser.parse_args()
 
