@@ -10,12 +10,12 @@
 # DATASET ve HF_TOKEN dışarıdan verilmezse aşağıdaki defaults kullanılır.
 # ============================================================
 #SBATCH -p orfoz
-#SBATCH -A proj67
+#SBATCH -A eliyilmaz
 #SBATCH -J tr_filter
 #SBATCH -N 1
 #SBATCH -n 1
-#SBATCH -c 60
-#SBATCH --mem=120G
+#SBATCH -c 56
+#SBATCH --mem=112G
 #SBATCH --time=12:00:00
 # 50 paralel task — NUM_TASKS degiskeni ile eslesmeli
 #SBATCH --array=0-49
@@ -26,7 +26,7 @@ set -euo pipefail
 
 PROJECT_DIR="/arf/scratch/proj67/turkish-filtering"
 cd "$PROJECT_DIR"
-source .venv/bin/activate
+source ozge-venv/bin/activate
 
 DATASET="${DATASET:-fineweb}" 
 HF_TOKEN="${HF_TOKEN:-}"  # sbatch --export=HF_TOKEN=hf_xxx ile ver
@@ -48,7 +48,7 @@ python3 truba/filter_dataset.py \
     --output_dir   "$OUTPUT_DIR" \
     --dropped_dir  "$DROPPED_DIR" \
     --hf_token     "$HF_TOKEN" \
-    --num_proc     60 \
+    --num_proc     56 \
     --ft_model     "$FT_MODEL" \
     --ft_threshold 0.80
 
