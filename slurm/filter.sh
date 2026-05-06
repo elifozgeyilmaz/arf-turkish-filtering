@@ -3,8 +3,9 @@
 # FineWeb-2 veya CulturaX Türkçe filtreleme — SLURM job array
 #
 # Kullanım:
+#   sbatch --export=DATASET=fineweb  slurm/filter.sh
+#   sbatch --export=DATASET=hplt2    slurm/filter.sh
 #   sbatch --export=DATASET=culturax,HF_TOKEN=hf_xxx slurm/filter.sh
-#   sbatch --export=DATASET=fineweb               slurm/filter.sh
 #
 # DATASET ve HF_TOKEN dışarıdan verilmezse aşağıdaki defaults kullanılır.
 # ============================================================

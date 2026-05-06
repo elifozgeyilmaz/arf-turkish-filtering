@@ -98,28 +98,28 @@ def _modify(text):
     return " ".join(w for w in text.split() if not any(s in w for s in bad))
 
 
-def _keep(text_raw: str) -> bool:
-    # Kısa satır filtresi — ham metin üzerinde
+def _drop_reason(text_raw: str) -> str:
+    """Belgeyi atmak için sebep döndürür; boş string → tut."""
     lines = [l.strip() for l in text_raw.split("\n") if l.strip()]
     if len(lines) >= 5:
         short = sum(1 for l in lines if len(_get_words(l)) <= 3)
         if (short / len(lines)) > 0.30:
-            return False
+            return "kisa_satir"
 
     text = _modify(text_raw)
     words = _get_words(text)
 
     # Kelime sayısı -> 100.000 üstünü atma konusundan emin değilim TODO!
     if not (15 <= len(words) <= 100_000):
-        return False
+        return "kelime_sayisi"
 
     # FastText dil tespiti
     if not _is_turkish(text):
-        return False
+        return "fasttext_dil"
 
     # Uzun kelime
     if not all(len(w) <= 40 for w in words):
-        return False
+        return "uzun_kelime"
 
     # Karakter tekrarı
     chars = list(text)
@@ -129,7 +129,7 @@ def _keep(text_raw: str) -> bool:
         counts = Counter(ngrams)
         repeated = sum(c for c in counts.values() if c > 1)
         if (repeated / len(ngrams)) > 0.20:
-            return False
+            return "karakter_tekrari"
 
     # Kelime tekrarı
     n = 5
@@ -138,31 +138,32 @@ def _keep(text_raw: str) -> bool:
         counts = Counter(wgrams)
         repeated = sum(c for c in counts.values() if c > 1)
         if (repeated / len(wgrams)) > 0.15:
-            return False
+            return "kelime_tekrari"
 
     # Özel karakter oranı
     if not text or (sum(1 for c in text if c in SPECIAL_CHARS) / len(text)) > 0.35:
-        return False
+        return "ozel_karakter"
 
     # Stopword oranı
     sw_ratio = sum(1 for w in words if w.lower() in _STOPWORDS) / len(words)
     if sw_ratio < 0.05:
-        return False
+        return "dusuk_stopword"
 
     # Flagged word oranı -> TODO 2 : bu oran değişmeli mi, bazı kelimeleri görünce direkt atsak mı?
     fw_ratio = sum(1 for w in words if w.lower() in _FLAGGED) / len(words)
     if fw_ratio > 0.05:
-        return False
+        return "flagged_kelime"
 
-    return True
+    return ""
 
 
 def _process(example: dict) -> dict:
     text_raw = example.get("text", "")
     if not isinstance(text_raw, str) or not text_raw.strip():
-        return {"text": text_raw, "_keep": False}
-    keep = _keep(text_raw)
-    return {"text": _modify(text_raw) if keep else text_raw, "_keep": keep}
+        return {"text": text_raw, "_keep": False, "_reason": "bos_metin"}
+    reason = _drop_reason(text_raw)
+    keep = reason == ""
+    return {"text": _modify(text_raw) if keep else text_raw, "_keep": keep, "_reason": reason}
 
 
 # ---------------------------------------------------------------------------
@@ -179,6 +180,11 @@ DATASETS = {
         "file_filter": lambda f: f.startswith("tr/") and f.endswith(".parquet"),
         "needs_token": True,
     },
+    "hplt2": {
+        "repo_id": "HPLT/HPLT2.0_cleaned",
+        "file_filter": lambda f: "tr_Latn" in f and f.endswith(".parquet"),
+        "needs_token": False,
+    },
 }
 
 # ---------------------------------------------------------------------------
@@ -187,7 +193,7 @@ DATASETS = {
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--dataset",   choices=["fineweb", "culturax"], required=True) 
+    parser.add_argument("--dataset",   choices=["fineweb", "culturax", "hplt2"], required=True)
     parser.add_argument("--task_id",   type=int, required=True) # shell task_id atayıp çağırıyor, python scriptlerini
     parser.add_argument("--num_tasks", type=int, required=True)
     parser.add_argument("--output_dir",  type=str, required=True)
@@ -228,10 +234,20 @@ def main():
         print(f"[task {args.task_id}] Bu task için shard yok.")
         return
 
-    base_url     = f"https://huggingface.co/datasets/{cfg['repo_id']}/resolve/main/"
-    total_kept   = 0
-    total_before = 0
-    t0           = time.time()
+    base_url        = f"https://huggingface.co/datasets/{cfg['repo_id']}/resolve/main/"
+    total_kept      = 0
+    total_before    = 0
+    total_reasons   = Counter()
+    t0              = time.time()
+
+    def _log_reasons(reasons: Counter, n_before: int, prefix: str):
+        kept = reasons.get("", 0)
+        dropped = n_before - kept
+        print(f"{prefix}  toplam: {n_before:,}  kalan: {kept:,}  atılan: {dropped:,} ({dropped/n_before*100:.1f}%)")
+        for reason, count in sorted(reasons.items(), key=lambda x: -x[1]):
+            if reason == "":
+                continue
+            print(f"{prefix}    {reason:<20} {count:>8,}  ({count/n_before*100:.1f}%)")
 
     for shard_idx, fname in enumerate(my_files):
         # Her shard için ayrı çıktı dosyası — restart'ta mevcut olanlar atlanır
@@ -246,15 +262,20 @@ def main():
         url = base_url + fname
         print(f"[task {args.task_id}] Shard {shard_idx}/{len(my_files)-1} yükleniyor: {fname}")
 
-        shard = load_dataset("parquet", data_files=[url], split="train", num_proc=args.num_proc) # num_proc -> bölünecek çekirdek sayısı 
+        shard = load_dataset("parquet", data_files=[url], split="train", num_proc=args.num_proc) # num_proc -> bölünecek çekirdek sayısı
         n_before      = len(shard)
         total_before += n_before
-        #burada verilen cpu sayısına belgeyi bölüyor 
+
+        #burada verilen cpu sayısına belgeyi bölüyor
         shard   = shard.map(_process, num_proc=args.num_proc, desc=f"Shard {shard_idx}")
+
+        shard_reasons = Counter(shard["_reason"])
+        total_reasons += shard_reasons
+
         kept    = shard.filter(lambda x:     x["_keep"], num_proc=args.num_proc)
         dropped = shard.filter(lambda x: not x["_keep"], num_proc=args.num_proc)
-        kept    = kept.remove_columns(["_keep"])
-        dropped = dropped.remove_columns(["_keep"])
+        kept    = kept.remove_columns(["_keep", "_reason"])
+        dropped = dropped.remove_columns(["_keep", "_reason"])
 
         kept.to_parquet(out_path)
         if dropped_path:
@@ -262,20 +283,12 @@ def main():
 
         total_kept += len(kept)
         elapsed     = time.time() - t0
-        keep_pct    = len(kept) / n_before * 100 if n_before else 0
-        print(
-            f"[task {args.task_id}] Shard {shard_idx}: "
-            f"{n_before:,} → {len(kept):,} kalan ({keep_pct:.1f}%)  "
-            f"süre={elapsed:.0f}s  → {out_path}"
-        )
+        print(f"[task {args.task_id}] Shard {shard_idx}/{len(my_files)-1}  süre={elapsed:.0f}s  → {out_path}")
+        _log_reasons(shard_reasons, n_before, prefix=f"[task {args.task_id}]")
 
     elapsed  = time.time() - t0
-    keep_pct = total_kept / total_before * 100 if total_before else 0
-    print(
-        f"[task {args.task_id}] TAMAMLANDI: "
-        f"{total_before:,} → {total_kept:,} kalan ({keep_pct:.1f}%)  "
-        f"toplam süre={elapsed:.0f}s"
-    )
+    print(f"\n[task {args.task_id}] === TAMAMLANDI  toplam süre={elapsed:.0f}s ===")
+    _log_reasons(total_reasons, total_before, prefix=f"[task {args.task_id}] TOPLAM")
 
 
 if __name__ == "__main__":
