@@ -14,9 +14,8 @@ Kullanım:
     --hf_token $HF_TOKEN \\
     --num_proc 60
 """
-#TODO 3 fasttext ile skor< 0.80 olanları bu iki datasetin filtrelenmesine eklesek mi?
 #TODO 4 fasttexti eğitebiliriz, küçük bir etiketlenmiş dataset lazım , örnek:
-# Format: __label__good Ankara Türkiye'nin başkentidir. / __label__bad sdfhcshvfsf. -> binary classifier 
+# Format: __label__good Ankara Türkiye'nin başkentidir. / __label__bad sdfhcshvfsf. -> binary classifier
 import argparse
 import html
 import os
@@ -56,6 +55,33 @@ _STOPWORDS = frozenset(w.lower() for w in stopwords_tr)
 _FLAGGED   = frozenset(w.lower() for w in flagged_words_tr)
 
 # ---------------------------------------------------------------------------
+# FastText dil tespiti
+# ---------------------------------------------------------------------------
+_FT_MODEL = None
+_FT_MODEL_PATH = None
+_FT_THRESHOLD = 0.80
+
+
+def _get_ft_model():
+    global _FT_MODEL
+    if _FT_MODEL is None and _FT_MODEL_PATH:
+        import fasttext
+        fasttext.FastText.eprint = lambda x: None  # model uyarılarını bastır
+        _FT_MODEL = fasttext.load_model(_FT_MODEL_PATH)
+    return _FT_MODEL
+
+
+def _is_turkish(text: str) -> bool:
+    model = _get_ft_model()
+    if model is None:
+        return True  # model verilmemişse filtreyi atla
+    # lid.176.bin ISO 639-1 kullanır → Türkçe etiketi "tr"
+    line = text.replace("\n", " ")
+    labels, scores = model.predict(line, k=1)
+    return labels[0] == "__label__tr" and scores[0] >= _FT_THRESHOLD
+
+
+# ---------------------------------------------------------------------------
 # Filtreleme fonksiyonları
 # ---------------------------------------------------------------------------
 
@@ -85,6 +111,10 @@ def _keep(text_raw: str) -> bool:
 
     # Kelime sayısı -> 100.000 üstünü atma konusundan emin değilim TODO!
     if not (15 <= len(words) <= 100_000):
+        return False
+
+    # FastText dil tespiti
+    if not _is_turkish(text):
         return False
 
     # Uzun kelime
@@ -165,10 +195,22 @@ def main():
                         help="Atılan belgelerin kaydedileceği dizin (verilmezse kaydedilmez)")
     parser.add_argument("--hf_token",   type=str, default=None) # culturax icin lazım da ama onu kullanmayalım diyorum, bu satır gereksiz oldu simdi -> fineweb ve hplt icin
     parser.add_argument("--num_proc",   type=int, default=os.cpu_count())
+    parser.add_argument("--ft_model",     type=str, default=None,
+                        help="FastText dil tespit modeli yolu (ör: /path/to/lid.176.bin)")
+    parser.add_argument("--ft_threshold", type=float, default=0.80,
+                        help="FastText Türkçe skor eşiği (varsayılan: 0.80)")
     args = parser.parse_args()
 
     if args.hf_token:
         login(token=args.hf_token, add_to_git_credential=False)
+
+    global _FT_MODEL_PATH, _FT_THRESHOLD
+    if args.ft_model:
+        _FT_MODEL_PATH = args.ft_model
+        _FT_THRESHOLD  = args.ft_threshold
+        print(f"FastText modeli: {_FT_MODEL_PATH}  eşik: {_FT_THRESHOLD}")
+    else:
+        print("FastText filtresi devre dışı (--ft_model verilmedi)")
 
     os.makedirs(args.output_dir, exist_ok=True)
     if args.dropped_dir:
