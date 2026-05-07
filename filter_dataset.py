@@ -149,9 +149,9 @@ def _drop_reason(text_raw: str) -> str:
     if sw_ratio < 0.05:
         return "dusuk_stopword"
 
-    # Flagged word oranı -> TODO 2 : bu oran değişmeli mi, bazı kelimeleri görünce direkt atsak mı?
+    # Flagged word oranı -> TODO 2 : bazı kelimeleri görünce direkt atsak mı?
     fw_ratio = sum(1 for w in words if w.lower() in _FLAGGED) / len(words)
-    if fw_ratio > 0.05:
+    if fw_ratio > 0.04:
         return "flagged_kelime"
 
     return ""

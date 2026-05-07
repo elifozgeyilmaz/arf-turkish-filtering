@@ -10,7 +10,6 @@
 # DATASET ve HF_TOKEN dışarıdan verilmezse aşağıdaki defaults kullanılır.
 # ============================================================
 #SBATCH -p orfoz
-#SBATCH -A eliyilmaz
 #SBATCH -J tr_filter
 #SBATCH -N 1
 #SBATCH -n 1
